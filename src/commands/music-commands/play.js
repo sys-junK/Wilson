@@ -1,79 +1,58 @@
-const { Client, Interaction, ApplicationCommandOptionType, VoiceChannel } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType } = require('@discordjs/voice');
-const play = require('play-dl');
-const ffmpegPath = require('ffmpeg-static');
+const { Interaction, ApplicationCommandOptionType } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const playdl = require('play-dl');
 
 module.exports = {
   name: 'play',
-  description: 'Play music in your voice channel.',
+  description: 'Play a song in your voice channel',
   options: [
     {
-      name: 'url',
-      description: 'URL song',
-      type: ApplicationCommandOptionType.String,
-      required: true,
+      name: 'youtube-url',
+      description: 'Youtube URL',
+      options: ApplicationCommandOptionType.String,
     },
   ],
 
   /**
    * 
-   * @param {Client} client 
-   * @param {Interaction} interaction 
+   * @param {interaction} interaction 
    */
-  callback: async (client, interaction) => {
-    const query = interaction.options.getString('url');
-    console.log('Query:', query);
-    if (!query) {
-      await interaction.followUp('URL tidak ditemukan.');
-      return;
+  callback: async (interaction) => {
+    const url = interaction.options.getString('youtube-url');
+    const member = interaction.member;
+
+    // ngecek kalo member ada di voice channel or not
+    const voiceChannel = member.voice.channel;
+    if (!voiceChannel) {
+      return interaction.reply('You have to join voice channel to use this commands!');
     }
+
     await interaction.deferReply();
 
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) {
-      await interaction.reply('Kamu harus join voice channel terlebih dahulu.');
-      return;
-    }
-
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: interaction.guild.id,
-      adapterCreator: interaction.guild.voiceAdapterCreator,
-    });
-
     try {
-      const video = play.video_basic_info(query);
-      const stream = await play.stream(video.video_details.url);
-      const resource = createAudioResource(stream.stream, {
-        inputType: stream.type === 'opus' ? StreamType.Opus : StreamType.Arbitrary
+      const stream = await playdl.stream(url);
+
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: interaction.guild.id,
+        adapterCreator: interaction.guild.voiceAdapterCreator
       });
-
-      if (!stream || !stream.stream) {
-        await interaction.followUp('Gagal mengambil stream dari URL');
-        return;
-      }
-
-      if (!play.is_explicit(query)) {
-        await interaction.followUp('Input yang kamu masukan bukan URL yang valid.');
-      }
 
       const player = createAudioPlayer();
-      connection.subscribe(player);
-      player.play(resource);
-
-      player.on(AudioPlayerStatus.Playing, () => {
-        console.log('Sedang memutar musik...');
+      const resource = createAudioResource(stream.stream, {
+        inputType: stream.type
       });
+
+      player.play(resource);
+      connection.subscribe(player);
 
       player.on(AudioPlayerStatus.Idle, () => {
         connection.destroy();
-        console.log('Musik selesai. Bot keluar dari channel.');
       });
 
-      await interaction.followUp(`Memutar: ${query}`);
+      await interaction.deferReply(`Start playing ${url}!`);
     } catch (error) {
-      console.error('Terjadi error saat streaming.', error);
-      await interaction.followUp('Gagal memutar lagu. Coba URL lain atau cek koneksi internet.');
+      await interaction.editReply('Gagal memutar lagu...');
     }
   }
 }

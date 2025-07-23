@@ -21,7 +21,7 @@ module.exports = {
     const url = interaction.options.getString('youtube-url');
     const member = interaction.member;
 
-    // ngecek kalo member ada di voice channel or not
+    // ngecek kalo member ada di voice channel atau ga
     const voiceChannel = member.voice.channel;
     if (!voiceChannel) {
       return interaction.reply('You have to join voice channel to use this commands!');
